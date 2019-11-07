@@ -114,13 +114,14 @@ void            pinit(void);
 void            procdump(void);
 void            scheduler(void) __attribute__((noreturn));
 void            sched(void);
+int		set_priority(int pid, int priority);
 void            setproc(struct proc*);
 void            sleep(void*, struct spinlock*);
 void            userinit(void);
 int             wait(void);
+int             waitx(int *, int *);
 void            wakeup(void*);
 void            yield(void);
-int             waitx(int *, int *);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

@@ -134,6 +134,8 @@ userinit(void)
     panic("userinit: out of memory?");
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
   p->sz = PGSIZE;
+  p->priority = 10;
+  p->c_time = ticks;
   memset(p->tf, 0, sizeof(*p->tf));
   p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
   p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
@@ -205,6 +207,7 @@ fork(void)
   *np->tf = *curproc->tf;
 
   // Clear %eax so that fork returns 0 in the child.
+  np->priority = curproc->priority;
   np->tf->eax = 0;
 
   for(i = 0; i < NOFILE; i++)
@@ -380,19 +383,35 @@ scheduler(void)
 	switchkvm();
 	c->proc = 0;
       } 
-      /*// Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+    #else
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;*/
+    #ifdef PBS
+      struct proc *prproc = 0;
+      struct proc *p1;
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+      {
+        if(p->state != RUNNABLE)
+          continue;
+	else
+	{
+	  prproc = p;
+	  for(p1 = ptable.proc; p1 < &ptable.proc[NPROC]; p1++)
+	  {
+	    if(p1->state != RUNNABLE)
+	      continue;
+	    if(!(p1->priority >= prproc->priority))
+	      prproc = p1;
+	  }
+    	  c->proc = p;
+    	  switchuvm(p);
+    	  p->state = RUNNING;
+    	  swtch(&(c->scheduler), p->context);
+    	  switchkvm();
+    	  c->proc = 0;
+	}
+      }
+    
+    #endif
     #endif
     #endif
     release(&ptable.lock);
@@ -621,3 +640,21 @@ waitx(int *wtime, int *rtime)
   }
 }
 
+int
+set_priority(int pid, int priority)
+{
+  struct proc *p;
+  int temp;
+  acquire(&ptable.lock);
+  for(p=ptable.proc; p<&ptable.proc[NPROC]; p++)
+  {
+    if((p->priority-priority)==0)
+    {
+      temp = priority;
+      p->priority = temp;
+      break;
+    }
+  }
+  release(&ptable.lock);
+  return pid;
+}
