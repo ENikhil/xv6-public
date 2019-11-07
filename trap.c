@@ -53,6 +53,7 @@ trap(struct trapframe *tf)
       ticks++;
       wakeup(&ticks);
       release(&tickslock);
+    }
       if(myproc() != 0)
       {
 	if(myproc()->state == SLEEPING)
@@ -60,7 +61,6 @@ trap(struct trapframe *tf)
 	else if(myproc()->state == RUNNING)
 	  myproc()->r_time++;
       }
-    }
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_IDE:

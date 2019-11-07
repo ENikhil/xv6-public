@@ -88,6 +88,10 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->r_time = 0;
+  p->e_time = 0;
+  p->io_time = 0;
+  p->c_time = ticks;
 
   release(&ptable.lock);
 
@@ -111,7 +115,7 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-
+  
   return p;
 }
 
@@ -262,6 +266,7 @@ exit(void)
   }
 
   // Jump into the scheduler, never to return.
+  curproc->e_time = ticks;
   curproc->state = ZOMBIE;
   sched();
   panic("zombie exit");
@@ -322,21 +327,60 @@ wait(void)
 void
 scheduler(void)
 {
-  struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
-  for(;;){
+  struct proc *p;
+  for(;;)
+  {
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
-
-      // Switch to chosen process.  It is the process's job
+    #ifdef RRDEFAULT
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+      {   
+        if(p->state != RUNNABLE)
+          continue;
+	c->proc = p;
+	switchuvm(p);
+	p->state = RUNNING;
+	swtch(&(c->scheduler), p->context);
+	switchkvm();
+	c->proc = 0;
+      }
+    #else
+    
+    #ifdef FCFS
+      struct proc *minproc = 0;
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+      {
+        if(p->state != RUNNABLE)
+          continue;
+	else
+	{
+  	  if(minproc == 0)
+	  {
+	    minproc = p;
+	  }
+	  else if(minproc != 0)
+	  {
+	    if(!(minproc->c_time < p->c_time))
+	      minproc = p;
+	  }	    
+	}
+      }
+      if(minproc)
+      {
+	p = minproc;
+	c->proc = p;
+	switchuvm(p);
+	p->state = RUNNING;
+	swtch(&(c->scheduler), p->context);
+	switchkvm();
+	c->proc = 0;
+      } 
+      /*// Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
       c->proc = p;
@@ -348,10 +392,10 @@ scheduler(void)
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
-      c->proc = 0;
-    }
+      c->proc = 0;*/
+    #endif
+    #endif
     release(&ptable.lock);
-
   }
 }
 

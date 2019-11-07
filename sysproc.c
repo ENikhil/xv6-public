@@ -93,11 +93,11 @@ sys_uptime(void)
 int
 sys_waitx(void)
 {
-  int *wtime;
   int *rtime;
+  int *wtime;
   if(argptr(0, (char**)&wtime, sizeof(int)) < 0)
-	  return 1;
+	  return 12;
   if(argptr(0, (char**)&rtime, sizeof(int)) < 0)
-	  return 1;
+	  return 13;
   return waitx(wtime, rtime);
 }
